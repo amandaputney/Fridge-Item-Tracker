@@ -14,30 +14,31 @@ from django.http import HttpResponse
 import os
 import boto3
 import uuid
+from django.views import View
 
 
 # Create your views here.
 def send_email(request, reminder_id):
     error_message = ''
     reminder = Reminder.objects.get(id=reminder_id)
-    subject =  reminder.name + ' ' + 'Forget Me Not Reminder'
-    message =  reminder.description
+    subject = reminder.name + ' ' + 'Forget Me Not Reminder'
+    message = reminder.description
     from_email = 'forget.me.no.sei.620@gmail.com'
     try:
-      send_mail(
-          subject,
-          message,
-          from_email,
-          [reminder.send_to_email],
-          fail_silently=False,
-          auth_user=os.environ['SES_USER'],
-          auth_password=os.environ['SES_PW']
-      )
+        send_mail(
+            subject,
+            message,
+            from_email,
+            [reminder.send_to_email],
+            fail_silently=False,
+            auth_user=os.environ['SES_USER'],
+            auth_password=os.environ['SES_PW']
+        )
     except Exception as e:
-      if 'not verified' in e.__str__():
-        error_message = "Please send an email to <a href = \"mailto: forget.me.no.sei.620@gmail.com\">forget.me.no.sei.620@gmail.com</a> to be added to the list of verified emails.  Thank you!"
-      else:
-        error_message = e 
+        if 'not verified' in e.__str__():
+            error_message = "Please send an email to <a href = \"mailto: forget.me.no.sei.620@gmail.com\">forget.me.no.sei.620@gmail.com</a> to be added to the list of verified emails.  Thank you!"
+        else:
+            error_message = e
     context = {'reminder': reminder, 'error_message': error_message}
     return render(request, 'fridge_app/reminder_detail.html', context)
 
@@ -131,9 +132,11 @@ class ReceiptCreate(LoginRequiredMixin, CreateView):
         form.instance.user = self.request.user
         return super().form_valid(form)
 
+
 class ReceiptUpdate(LoginRequiredMixin, UpdateView):
-  model = Receipt
-  fields = ['store_name','purchase_date','receipt_total','item_list']
+    model = Receipt
+    fields = ['store_name', 'purchase_date', 'receipt_total', 'item_list']
+
 
 class ReceiptDelete(LoginRequiredMixin, DeleteView):
     model = Receipt
@@ -168,7 +171,7 @@ class ReminderDelete(LoginRequiredMixin, DeleteView):
     model = Reminder
     success_url = '/reminders'
 
-# Adding a reminder  ----------------------------------------------------------
+# Adding a reminder to a perishable item  ----------------------------------------------------------
 
 
 def add_reminder(request, perishable_id, reminder_id):
@@ -176,22 +179,45 @@ def add_reminder(request, perishable_id, reminder_id):
     return redirect('detail', perishable_id=perishable_id)
 
 
+class CreateReminderView(View):
+    template_name = 'fridge_app/create_reminder.html'
+
+    def get(self, request, perishable_id):
+        perishable = Perishable.objects.get(pk=perishable_id)
+        form = ReminderForm()
+        context = {'form': form, 'perishable': perishable}
+        return render(request, self.template_name, context)
+
+    def post(self, request, perishable_id):
+        perishable = Perishable.objects.get(pk=perishable_id)
+        form = ReminderForm(request.POST)
+        if form.is_valid():
+            reminder = form.save(commit=False)  # Don't save the reminder yet
+            reminder.user = request.user  # Associate the user
+            reminder.save()  # saves the reminder with the user association
+            perishable.reminders.add(reminder)
+            return redirect('perishables_detail', pk=perishable.pk)
+        context = {'form': form, 'perishable': perishable}
+        return render(request, self.template_name, context)
+
+
 # ------photo upload for receipts----------------------------------------------------------------------------------
 @login_required
 def add_receipt(request, receipt_id):
-  receipt_image = request.FILES.get('receipt-image', None)
-  if receipt_image:
-      s3 = boto3.client('s3')
-      key = uuid.uuid4().hex[:6] + receipt_image.name[receipt_image.name.rfind('.'):]
-  try:
+    receipt_image = request.FILES.get('receipt-image', None)
+    if receipt_image:
+        s3 = boto3.client('s3')
+        key = uuid.uuid4().hex[:6] + \
+            receipt_image.name[receipt_image.name.rfind('.'):]
+    try:
         bucket = os.environ['S3_BUCKET']
         s3.upload_fileobj(receipt_image, bucket, key)
         url = f"{os.environ['S3_BASE_URL']}{bucket}/{key}"
-        receipt= Receipt.objects.get(id=receipt_id)
+        receipt = Receipt.objects.get(id=receipt_id)
         receipt.url = url
         receipt.save()
         # Receipt.objects.create(url=url, receipt_id=receipt_id)
-  except Exception as e:
+    except Exception as e:
         print('An error occurred uploading file to S3')
         print(e)
-  return redirect('receipt_detail', receipt_id=receipt_id)
+    return redirect('receipt_detail', receipt_id=receipt_id)
