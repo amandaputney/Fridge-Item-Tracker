@@ -5,7 +5,7 @@
     {% csrf_token %}
     {{ form.as_p }}
     <input type="hidden" name="perishable_id" value="{{ perishable.id }}">
-    <input type="submit" value="Submit!" class="btn">
+    <input type="submit" value="Submit" class="btn">
 </form>
 <script>
     const dateEl = document.getElementById('id_date');

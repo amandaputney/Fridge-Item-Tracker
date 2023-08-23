@@ -104,5 +104,7 @@ td.is-today.is-selected {
   color: #333;
 } */
 
-
+.brand-logo {
+position: fixed;
+}
 
