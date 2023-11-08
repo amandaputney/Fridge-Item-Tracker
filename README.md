@@ -1,5 +1,5 @@
 # FORGET ME NOT by Repo Depot
-https://forget-me-not-398cf9b15568.herokuapp.com/
+[Live Link](https://forget-me-not-398cf9b15568.herokuapp.com/)
 
 ## Project Idea and descriptions
 
